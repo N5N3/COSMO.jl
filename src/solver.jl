@@ -11,7 +11,7 @@ function admm_z!(s::SplitVector{T},
 	# @. x = w[1:n] #this is handled via a view: x = view(w_prev, 1:n), prev to keep it in sync with s
 
 	# 2) s = Π(w)
-	@. s.data = w[n+1:end]
+	@views @. s.data = w[n+1:end]
 	p_time = @elapsed project!(s, set)
 
 	# 3) y = ρ * (w - Π(w)) (Moreau decomposition)
@@ -22,7 +22,7 @@ end
 
 "The dual variable μ can be recovered from w, s via Moreau decomposition: μ = ρ (w - Π(w))."
 function recover_μ!(μ::Vector{T}, w::Vector{T}, s::SplitVector{T}, ρ::Vector{T}, n::Int64) where {T <: AbstractFloat}
-	@. μ = ρ * (w[n+1:end] - s.data)
+	@views @. μ = ρ * (w[n+1:end] - s.data)
 end
 
 """
@@ -42,17 +42,16 @@ function admm_x!(s::SplitVector{T},
 	σ::T,
 	m::Int,
 	n::Int) where {T <: AbstractFloat}
-
 	# 2) linear solve
 	# Create right hand side for linear system
 	# deconstructed solution vector is ls = [x_tl(n+1); ν(n+1)]
 	# x_tl and ν are automatically updated, since they are views on sol
-	@. ls[1:n] = σ * w[1:n] - q	# T(2) * σ * x - σ * w[1:n] - q, as x == w[1:n] at that point
-	@. ls[(n + 1):end] = b - T(2) * s.data + w[(n + 1):end]
+	@views @. ls[1:n] = σ * w[1:n] - q	# T(2) * σ * x - σ * w[1:n] - q, as x == w[1:n] at that point
+	@views @. ls[n+1:end] = b - T(2) * s.data + w[n+1:end]
 	solve!(kkt_solver, sol, ls)
 
 	# x_tl and ν are automatically updated as they are views into sol
-	@. s_tl = T(2) * s.data - w[n+1:end] - ν  / ρ
+	@views @. s_tl = T(2) * s.data - w[n+1:end] - ν  / ρ
 end
 
 """
@@ -60,8 +59,8 @@ end
 ADMM-operator variable `w` update with over-relaxation parameter α.
 """
 function admm_w!(s::SplitVector{T}, x_tl::LinsolveSubarray{T}, s_tl::Vector{T}, w::Vector{T}, α::T, m::Int64, n::Int64) where {T <: AbstractFloat}
-	@. w[1:n] = w[1:n] + α * (x_tl - w[1:n]) 
-	@. w[n+1:end] = w[n+1:end] + α * (s_tl - s.data)
+	@views @. w[1:n] += α * (x_tl - w[1:n]) 
+	@views @. w[n+1:end] += α * (s_tl - s.data)
 end
 
 
@@ -125,7 +124,7 @@ function optimize!(ws::COSMO.Workspace{T}) where {T <: AbstractFloat}
 	COSMO.allocate_loop_variables!(ws, m, n)
 
 	# warm starting the operator variable
-	@. ws.vars.w[1:n] = ws.vars.x[1:n]
+	@. ws.vars.w[1:n] = @view ws.vars.x[1:n]
 	@. ws.vars.w[n+1:n+m] = one(T) / ws.ρvec * ws.vars.μ + ws.vars.s.data
 
 	# change state of the workspace
@@ -332,7 +331,7 @@ function check_termination!(ws::Workspace{T}, settings::Settings{T}, iter::Int64
 			@. ws.δy.data -= ws.vars.μ
 
 			# compute δx for infeasibility detection
-			@. ws.δx = ws.vars.w[1:n] - ws.vars.w_prev[1:n]
+			@views @. ws.δx = ws.vars.w[1:n] - ws.vars.w_prev[1:n]
 
 			if is_primal_infeasible!(ws.δy, ws)
 				status = :Primal_infeasible
