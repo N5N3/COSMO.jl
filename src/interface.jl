@@ -184,7 +184,7 @@ end
 
 Updates the model data for `b` or `q`. This can be done without refactoring the KKT matrix. The vectors will be appropriatly scaled.
 """
-function update!(model::COSMO.Model{T}; q::Union{Vector{T}, Nothing} = nothing, b::Union{Vector{T}, Nothing} = nothing) where {T <: AbstractFloat}
+function update!(model::COSMO.Model{T}; q::Union{AbstractVector{T}, Nothing} = nothing, b::Union{AbstractVector{T}, Nothing} = nothing) where {T <: AbstractFloat}
 	m, n = model.p.model_size
 	!model.states.IS_ASSEMBLED && error("Model has to be assembled once before one can start updating q or b.")
 	if q != nothing
